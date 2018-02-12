@@ -92,65 +92,28 @@ url_data = pd.concat(article_raw).reset_index(drop = True)
 
 
 
-
-
-
-
-
-url = 'https://www.nytimes.com/aponline/2018/02/08/sports/basketball/ap-bkn-trade-deadline.html'
-
-
+# Scraping the articles
+    
 from bs4 import BeautifulSoup
 import re
 
+url_data = pd.read_csv('data/url_data.csv')
 
-r = requests.get(url)
-html_soup = BeautifulSoup(r.text, 'html.parser')
-pretty_soup = html_soup.prettify()
+def extract_content(url):
+    r = requests.get(url)
+    soup = BeautifulSoup(r.text, 'html.parser')
+    name_box = soup.findAll('p', attrs={'class': 'story-body-text story-content'})
+    content = [x.text for x in name_box]
+    content_final = ' '.join(content)
+    return(content_final)
     
-    import sys
-    sys.stdout = open('html.txt','w')
-    print(pretty_soup)
-    sys.stdout.close()
-    
-    awards = html_soup.find('div', {'id':'content-2-wide'})
-    
-    try:
-        ## Getting total awards and nominations
-        won_nom = awards.find('div',{'class':'header'}).text
-        tot_awards2 = [int(j) for j in re.findall(r'\d+',won_nom)]
-        tot_awards.append({'id':movie_id,
-                           'tot_wins':tot_awards2[0],'tot_noms':tot_awards2[1]})
-        
-        
-        ## Getting only Oscars, BAFTA, Golden Globe and Screen Actors Guild Awards
-        p_wins = awards.findAll('h3',limit=5)
-        p_wins = p_wins[1:]
-        award_title = [j.text.strip() for j in p_wins]
-        award_title = [j[:-6] for j in award_title]
-        
-        p_wins = awards.findAll('table',limit=4)
-        dat = []
-        for index, j in enumerate(p_wins):
-            trs = j.findAll('tr')
-            dat1 = []    
-            for k in trs:
-                dic = {}
-                try:
-                    dic['type'] = award_title[index]
-                    dic['status'] = k.find('b').text
-                    dic['title'] = k.find('td',{'class':'award_description'}).text
-                    dat1.append(dic)
-                except:
-                    dic['type'] = award_title[index]
-                    dic['status'] = dat1[-1]['status']
-                    dic['title'] = k.find('td',{'class':'award_description'}).text
-                    dat1.append(dic)
-            dat.append(dat1)
-        
-        award_info2 = [pd.DataFrame(j) for j in dat]
-        award_info2 = pd.concat(award_info2, axis = 0)
-        award_info2['id'] = movie_id
-        award_info = pd.concat([award_info, award_info2], axis = 0)
-    except:
-        print('Movie has no wins or nominations. Skipping.....')
+top_50 = url_data.iloc[:50,:]    
+
+extract_content('https://www.nytimes.com/2014/04/06/world/middleeast/break-in-syrian-war-brings-brittle-calm.html?_r=0#')
+
+content_50 = []
+
+for index, i in enumerate(top_50['web_url']):
+    print(i)
+    a = extract_content(i)
+    content_50.append(a)
