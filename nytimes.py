@@ -93,27 +93,66 @@ url_data = pd.concat(article_raw).reset_index(drop = True)
 
 
 # Scraping the articles
-    
+
 from bs4 import BeautifulSoup
-import re
 
-url_data = pd.read_csv('data/url_data.csv')
-
+@rate_limited(1)
 def extract_content(url):
     r = requests.get(url)
     soup = BeautifulSoup(r.text, 'html.parser')
+    
     name_box = soup.findAll('p', attrs={'class': 'story-body-text story-content'})
     content = [x.text for x in name_box]
     content_final = ' '.join(content)
-    return(content_final)
     
-top_50 = url_data.iloc[:50,:]    
+    if(content_final == ''):
+        name_box = soup.findAll('p')
+        content = [x.text for x in name_box]
+        content_final = ' '.join(content)
 
-extract_content('https://www.nytimes.com/2014/04/06/world/middleeast/break-in-syrian-war-brings-brittle-calm.html?_r=0#')
+    return(content_final)
 
-content_50 = []
+url_data = pd.read_csv('data/url_data.csv')
+url_data['video_flag'] = url_data['web_url'].str.contains('/video/')
+url_data['slideshow_flag'] = url_data['web_url'].str.contains('/slideshow/')
+url_data = url_data.loc[(url_data['video_flag'] == False) & (url_data['slideshow_flag'] == False),]
+url_data = url_data.drop(['video_flag','slideshow_flag'], axis = 1)
 
-for index, i in enumerate(top_50['web_url']):
-    print(i)
-    a = extract_content(i)
-    content_50.append(a)
+content = []
+for index, i in enumerate(url_data['web_url']):
+    try:
+        print(index)
+        a = extract_content(i)    
+        content.append(a)
+    except:
+        content.append('')
+        print('Skipping...')
+        
+content_data = url_data
+content_data['content'] = content
+content_data.to_csv('data/content_data.csv', index = False)
+
+content_data['length'] = content_data['content'].str.strip().str.len()
+
+import bokeh.plotting as bp
+from bokeh.io import show
+from bokeh.models import HoverTool
+
+array = content_data['length'][content_data['length'].values < 100000].values
+hist, edges = np.histogram(array, bins=50)
+
+source = bp.ColumnDataSource(data = dict(data_value = hist))
+
+p = bp.figure()
+p.quad(top=hist, bottom=0, left=edges[:-1], right=edges[1:], line_color="white", source = source)
+p.add_tools(HoverTool(tooltips= [("Value:", "@data_value")]))
+p.xaxis.axis_label = 'Length of Article'
+p.yaxis.axis_label = 'Frequency'
+show(p)
+
+
+content_data = content_data.loc[content_data['length'] > 60,]
+content_data = content_data.loc[content_data['length'] < 160000,]
+
+
+
