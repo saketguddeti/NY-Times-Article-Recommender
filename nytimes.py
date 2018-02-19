@@ -156,3 +156,59 @@ content_data = content_data.loc[content_data['length'] < 160000,]
 
 
 
+
+import gensim
+from sklearn.feature_extraction.text import CountVectorizer
+
+
+vect = CountVectorizer(min_df=20, max_df=0.2, stop_words='english', token_pattern='(?u)\\b\\w\\w\\w+\\b')
+X = vect.fit_transform(content_data['content'])
+corpus = gensim.matutils.Sparse2Corpus(X, documents_columns=False)
+id_map = dict((v, k) for k, v in vect.vocabulary_.items())
+
+
+from sklearn.metrics.pairwise import cosine_similarity
+def topic_sim(lda_model, num_topic):
+    topic_word = lda_model.get_topics()
+    avg_sim = []
+    for i in range(num_topic):
+        arr1 = topic_word[i]
+        sim = []
+        for j in range(num_topic):
+            arr2 = topic_word[j]
+            sim_value = KL(list(arr1), list(arr2))
+#            sim_value = cosine_similarity(arr1.reshape(1,-1),arr2.reshape(1,-1))
+            sim.append(sim_value)
+        avg_sim.append(np.mean(sim))
+    return(np.mean(avg_sim))        
+
+
+x = np.linspace(1, 100, 10).astype(int)
+topic_overlap = []
+for i in x:
+    print(i)
+    ldamodel = gensim.models.ldamodel.LdaModel(corpus, num_topics = i, 
+                                           id2word = id_map, passes = 20, random_state = 34)
+    topic_overlap.append(topic_sim(ldamodel, i))
+
+
+p = bp.figure(plot_width=400, plot_height=400)
+p.line(list(x), topic_overlap, line_width=2)
+p.circle(list(x), topic_overlap, fill_color="white", size=8)
+show(p)
+
+# remove ___ from the corpus
+ldamodel.print_topics()
+x = ldamodel.get_topics()
+
+def KL(a, b):
+    a = np.asarray(a, dtype=np.float)
+    b = np.asarray(b, dtype=np.float)
+
+    return np.sum(np.where(a != 0, a * np.log(a / b), 0))
+
+
+
+
+
+
