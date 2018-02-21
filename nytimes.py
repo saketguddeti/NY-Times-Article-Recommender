@@ -153,62 +153,90 @@ show(p)
 
 content_data = content_data.loc[content_data['length'] > 60,]
 content_data = content_data.loc[content_data['length'] < 160000,]
+content_data = content_data.reset_index()
 
 
 
 
 import gensim
 from sklearn.feature_extraction.text import CountVectorizer
+import nltk
+from nltk.stem.wordnet import WordNetLemmatizer
+from nltk.tokenize import RegexpTokenizer
+import string
 
+def pre_process(text):    
+    stopwords = set(nltk.corpus.stopwords.words('english'))
+    punctuation = set(string.punctuation)
+    lemmatizer = WordNetLemmatizer()
+    tokenizer = RegexpTokenizer(r'[0-9a-zA-Z]+')
+
+    def convert_tag(tag):
+        """
+        Convert the tag given by nltk.pos_tag to the tag used by wordnet
+        """
+        tag_dict = {'N': 'n', 'J': 'a', 'R': 'r', 'V': 'v'}
+        try:
+            return tag_dict[tag[0]]
+        except KeyError:
+            return 'a'
+
+    cl_text = (" ").join(tokenizer.tokenize(text))
+    cl_text = (" ").join([s for s in cl_text.lower().split() if s not in stopwords])
+    cl_text = ("").join([s for s in cl_text if s not in punctuation])
+    cl_text = nltk.word_tokenize(cl_text)
+    pos = nltk.pos_tag(cl_text)
+    pos = [convert_tag(t[1]) for t in pos]
+    cl_text = [lemmatizer.lemmatize(cl_text[i], pos[i]) for i in range(len(cl_text))]
+    return cl_text
+
+content_data['new_content'] = content_data['content'].apply(pre_process)
 
 vect = CountVectorizer(min_df=20, max_df=0.2, stop_words='english', token_pattern='(?u)\\b\\w\\w\\w+\\b')
-X = vect.fit_transform(content_data['content'])
+X = vect.fit_transform(content_data['new_content'].apply(lambda x: (" ").join(x)))
 corpus = gensim.matutils.Sparse2Corpus(X, documents_columns=False)
 id_map = dict((v, k) for k, v in vect.vocabulary_.items())
+dct = gensim.corpora.Dictionary.from_corpus(corpus, id_map)
 
+ldamodel = gensim.models.ldamodel.LdaModel(corpus, num_topics = 35, id2word = id_map, passes = 40)
+def topic_corpus():
+    bow_corpus = [dct.doc2bow(content_data.loc[i,'new_content']) for i in range(content_data.shape[0])]
+    topic_corpus = []
+    for i in range(len(bow_corpus)):
+        topic_dist = ldamodel[bow_corpus[i]]
+        topic_dist = {x[0]:x[1] for x in topic_dist}
+        topic_corpus.append(topic_dist)
+    topic_corpus = pd.DataFrame(topic_corpus).fillna(0)
+    return(topic_corpus)
+
+topic_corpus = topic_corpus()
+
+
+
+    
+    
+    
+    
+test = ["https://www.nytimes.com/2012/05/25/business/energy-environment/summer-gas-prices-expected-to-be-modestly-lower.html",
+        "https://www.nytimes.com/2018/01/19/sports/soccer/alexis-sanchez-manchester-united-city.html?rref=collection%2Ftimestopic%2FArsenal%20Football%20Club&action=click&contentCollection=soccer&region=stream&module=stream_unit&version=latest&contentPlacement=2&pgtype=collection",
+        "https://www.nytimes.com/2018/02/02/opinion/border-wall.html",
+        "https://www.nytimes.com/2005/01/03/business/03invest.html",
+        "https://www.nytimes.com/2018/01/18/science/earthquakes-moon-cycles.html"]    
+
+df = query_article_topic(test)
 
 from sklearn.metrics.pairwise import cosine_similarity
-def topic_sim(lda_model, num_topic):
-    topic_word = lda_model.get_topics()
-    avg_sim = []
-    for i in range(num_topic):
-        arr1 = topic_word[i]
-        sim = []
-        for j in range(num_topic):
-            arr2 = topic_word[j]
-            sim_value = KL(list(arr1), list(arr2))
-#            sim_value = cosine_similarity(arr1.reshape(1,-1),arr2.reshape(1,-1))
-            sim.append(sim_value)
-        avg_sim.append(np.mean(sim))
-    return(np.mean(avg_sim))        
 
+def dot_product(arr1, arr2):
+    return(cosine_similarity(arr1.reshape(1,-1),arr2.reshape(1,-1))[0][0])
 
-x = np.linspace(1, 100, 10).astype(int)
-topic_overlap = []
-for i in x:
-    print(i)
-    ldamodel = gensim.models.ldamodel.LdaModel(corpus, num_topics = i, 
-                                           id2word = id_map, passes = 20, random_state = 34)
-    topic_overlap.append(topic_sim(ldamodel, i))
+score = []
+for i in range(4937):
+    score.append(dot_product(topic_corpus.iloc[i,].values, df.iloc[1,].values))
+    
 
+score = sorted(range(len(score)), key=lambda k: score[k], reverse = True)
 
-p = bp.figure(plot_width=400, plot_height=400)
-p.line(list(x), topic_overlap, line_width=2)
-p.circle(list(x), topic_overlap, fill_color="white", size=8)
-show(p)
-
-# remove ___ from the corpus
-ldamodel.print_topics()
-x = ldamodel.get_topics()
-
-def KL(a, b):
-    a = np.asarray(a, dtype=np.float)
-    b = np.asarray(b, dtype=np.float)
-
-    return np.sum(np.where(a != 0, a * np.log(a / b), 0))
-
-
-
-
-
-
+content_data['web_url'][1667]
+    
+lemmatizer.lemmatize("Rights")
