@@ -153,7 +153,7 @@ show(p)
 
 content_data = content_data.loc[content_data['length'] > 60,]
 content_data = content_data.loc[content_data['length'] < 160000,]
-content_data = content_data.reset_index()
+content_data = content_data.reset_index(drop = True)
 
 
 
@@ -238,5 +238,87 @@ for i in range(4937):
 score = sorted(range(len(score)), key=lambda k: score[k], reverse = True)
 
 content_data['web_url'][1667]
+
+
+from gensim.models import Doc2Vec
+from gensim.models.doc2vec import LabeledSentence
+
+doc1 = extract_content("https://www.nytimes.com/2018/02/23/sports/olympics/cross-country-skiing-food.html?rref=collection%2Fsectioncollection%2Fsports&action=click&contentCollection=sports&region=rank&module=package&version=highlights&contentPlacement=1&pgtype=sectionfront")
+doc2 = extract_content("https://www.nytimes.com/2017/08/28/sports/soccer/arsenal-liverpool.html?rref=collection%2Ftimestopic%2FArsenal%20Football%20Club&action=click&contentCollection=soccer&region=stream&module=stream_unit&version=latest&contentPlacement=5&pgtype=collection")
+
+doc2 = "The timing of the statement, signed by 37 MPs and a dozen peers, including Helena Kennedy and Doreen Lawrence, will infuriate Corbyn as he prepares to announce a significant shift in policy tomorrow that is expected to commit Labour to backing permanent membership of a customs union with the EU. His speech will open a far clearer divide between Labour and the Tories over Brexit and raises the possibility that the party’s MPs could join forces with pro-EU Tories, the SNP and the Liberal Democrats to inflict damaging defeats on Theresa May in a series of Commons votes in the spring. But signatories to the statement, co-ordinated by the Labour Campaign for the Single Market, up the ante by saying that while the customs union shift is a step forward, it falls way short of where the party should be on Brexit. They argue that if Corbyn were to back single market membership too, he could deliver a parliamentary vote in favour of staying in, thereby safeguarding the country’s economic future and allowing his plans for boosting spending on public services to go ahead."
+
+def pre_process_doc2vec(text):    
+    stopwords = set(nltk.corpus.stopwords.words('english'))
+    punctuation = set(string.punctuation).union(set(['“','”','—','’','‘']))
+    punctuation.remove('-')
+    cl_text = (" ").join([s for s in text.lower().split() if s not in stopwords])
+    cl_text = ("").join([s for s in cl_text if s not in punctuation])
+    cl_text = nltk.word_tokenize(cl_text)
+    return cl_text
+
+class LabeledLineSentence(object):
+    def __init__(self, doc_list):
+       self.doc_list = doc_list
+    def __iter__(self):
+        for idx, doc in enumerate(self.doc_list):
+            yield LabeledSentence(words = pre_process_doc2vec(doc), tags = [idx])
+            
+
+it = LabeledLineSentence(list(content_data['content']))
+
+
+model = Doc2Vec(size=50, min_count=5, alpha=0.025, min_alpha=0.025, workers=8)
+model.build_vocab(it)
+
+for epoch in range(10):
+    model.train(it, total_examples = model.corpus_count, epochs = model.iter)
+    model.alpha -= 0.002  # decrease the learning rate
+    model.min_alpha = model.alpha  # fix the learning rate, no decay
     
-lemmatizer.lemmatize("Rights")
+model.save("data/doc2vec.model")
+model = Doc2Vec.load("data/doc2vec.model")
+
+docvec = model.docvecs[106]
+similar_doc = model.docvecs.most_similar(4412) 
+docvec = model.infer_vector(pre_process_doc2vec(doc2))
+model.docvecs.most_similar([docvec])
+
+for i in model.docvecs.most_similar([docvec]):
+    print(content_data['web_url'][i[0]])
+
+
+
+pca_data = pd.DataFrame(columns = list(range(50)))
+for i in range(len(model.docvecs)):
+    x = pd.DataFrame(model.docvecs[i].reshape(1,-1), columns = list(range(50)))
+    pca_data = pd.concat([pca_data, x], axis = 0)
+pca_data = pca_data.reset_index(drop = True)    
+
+
+from sklearn.decomposition import PCA
+pca = PCA(n_components = 2)
+pca_fln = pca.fit_transform(pca_data)
+pca_fln = pd.DataFrame(pca_fln)
+pca_fln['news_desk'] = content_data['news_desk']
+pca_fln.columns = ['col1','col2','col3']
+
+pca_fln = pca_fln.loc[pca_fln['col3'].isin(['Politics', 'Business', 'Sports','Culture','World','Health','Technology','Retail','Wealth','Travel']), ]
+
+source = bp.ColumnDataSource.from_df(pca_fln)
+
+from bokeh.palettes import d3
+import bokeh
+palette = d3['Category10'][len(pca_fln['col3'].unique())]
+color_map = bokeh.models.CategoricalColorMapper(factors=list(pca_fln['col3'].unique()), palette=palette)
+
+p = bp.figure(title = "Visualization of Article Semantics using PCA")
+p.scatter('col1','col2',source = source, color = {'field': 'col3', 'transform': color_map},
+          legend = {'field':'col3'}, alpha = 0.4, size = 10)
+p.border_fill_color = "whitesmoke"
+p.add_tools(HoverTool(tooltips= [("Article:","@col3")]))
+p.xaxis.axis_label = 'Dimension 1'
+p.yaxis.axis_label = 'Dimension 2'
+p.xgrid.grid_line_color = None
+p.ygrid.grid_line_color = None
+show(p)
