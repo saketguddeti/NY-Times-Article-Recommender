@@ -439,6 +439,3 @@ curdoc().add_root(grid)
 button_query.on_click(onclick)
 rec_button.on_click(rec_generate)
 reset_button.on_click(reset_pref)    
-
-
-output_notebook()
