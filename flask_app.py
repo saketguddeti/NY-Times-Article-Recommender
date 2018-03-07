@@ -33,7 +33,7 @@ def bokeh():
 
     # render template
 #    script, div = components(grid)
-    script = server_document(url="http://localhost:5006/sample")
+    script = server_document(url="http://localhost:5006/bokeh_code")
     html = render_template('index.html', plot_script=script)
 #                           div=div, js_resources=js_resources, css_resources=css_resources)
     return encode_utf8(html)
