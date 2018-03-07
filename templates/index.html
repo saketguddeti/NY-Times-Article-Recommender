@@ -1,10 +1,22 @@
 <!DOCTYPE html>
 <html>
   <head>
+
     <meta charset="utf-8">
-    <h2 style="text-align: left;"><span style="background-color: #ffffff; color: #333333;"><strong>NY Times Article Recommender</strong></span></h2>  </head>
-  <body>
+    <h2 style="text-align: left;"><span style="background-color: #ffffff; color: #333333;"><strong>NY Times Article Recommender</strong></span></h2>
+
+    {{ js_resources|indent(4)|safe }}
+
+    {{ css_resources|indent(4)|safe }}
+
     {{ plot_script|indent(4)|safe }}
+
+  </head>
+  <body>
+
+    {{ div|indent(4)|safe }}
+
     <p style="text-align: left;"><span style="background-color: #ffffff; color: #333333;">Built by Saket Guddeti &#9786</span></p>
+
   </body>
 </html>
